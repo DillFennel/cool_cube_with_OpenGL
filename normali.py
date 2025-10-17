@@ -34,6 +34,40 @@ def compute_face_center(vertices, face_indices):
     center = np.mean(face_vertices, axis=0)
     return center
 
+def compute_vertex_normals(vertices, faces):
+    """
+    Вычисляет вершинные нормали как среднее нормалей всех граней, содержащих вершину
+    """
+    vertex_normals = np.zeros((len(vertices), 3))
+    face_normals = []
+    
+    # Сначала вычисляем нормали для всех граней
+    for face in faces:
+        normal = compute_face_normal(vertices, face[:3])
+        face_normals.append(normal)
+    
+    # Для каждой вершины находим все грани, которые её содержат, и усредняем их нормали
+    for i, vertex in enumerate(vertices):
+        contributing_normals = []
+        for j, face in enumerate(faces):
+            if i in face:
+                v0 = vertices[face[0]]
+                v1 = vertices[face[1]]
+                v2 = vertices[face[2]]
+                face_normal = np.cross(v1 - v0, v2 - v0)
+                face_normal = face_normal / np.linalg.norm(face_normal)
+                contributing_normals.append(face_normal)
+        
+        if contributing_normals:
+            # Усредняем все нормали граней, содержащих эту вершину
+            contributing_normals_array = np.array(contributing_normals)
+            avg_normal = np.mean(contributing_normals_array, axis=0)
+            avg_normal = avg_normal / np.linalg.norm(avg_normal)
+        else:
+            avg_normal = np.zeros(3)
+        vertex_normals[i] = avg_normal
+    return vertex_normals
+
 def create_cube():
     """
     Создает вершины и грани куба
@@ -70,9 +104,82 @@ def create_cube():
     
     return vertices, faces, triangle_faces
 
+def visualize_vertex_normals():
+    """
+    Визуализирует куб с вершинными нормалями
+    """
+    # Создаем куб
+    vertices, faces, triangle_faces = create_cube()
+    
+    # Вычисляем вершинные нормали
+    vertex_normals = compute_vertex_normals(vertices, faces)
+    
+    # Создаем график
+    fig = plt.figure(figsize=(12, 10))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Визуализируем куб
+    cube_polygons = []
+    for face in faces:
+        polygon = [vertices[i] for i in face]
+        cube_polygons.append(polygon)
+    
+    cube_collection = Poly3DCollection(cube_polygons, 
+                                     alpha=0.3, 
+                                     facecolors='lightgreen', 
+                                     edgecolors='green',
+                                     linewidths=2)
+    ax.add_collection3d(cube_collection)
+    
+    # Визуализируем вершинные нормали
+    normal_length = 0.8  # Длина нормалей для визуализации
+    
+    for i, (vertex, normal) in enumerate(zip(vertices, vertex_normals)):
+        # Визуализируем вершинную нормаль
+        ax.quiver(vertex[0], vertex[1], vertex[2],
+                 normal[0], normal[1], normal[2],
+                 length=normal_length, color='purple', 
+                 arrow_length_ratio=0.15, linewidth=2,
+                 label='Вершинная нормаль' if i == 0 else "")
+        
+        # Отмечаем вершины точками
+        ax.scatter(vertex[0], vertex[1], vertex[2], color='black', s=50)
+    
+    # Настраиваем график
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y') 
+    ax.set_zlabel('Z')
+    ax.set_title('3D-геометрия: Визуализация куба с ВЕРШИННЫМИ нормалями', fontsize=14, fontweight='bold')
+    
+    # Устанавливаем равные масштабы по осям
+    max_range = 3
+    ax.set_xlim([-max_range, max_range])
+    ax.set_ylim([-max_range, max_range])
+    ax.set_zlim([-max_range, max_range])
+    
+    # Добавляем легенду
+    ax.legend()
+    
+    # Добавляем сетку для лучшего восприятия 3D-пространства
+    ax.grid(True, alpha=0.3)
+    
+    # Устанавливаем угол обзора
+    ax.view_init(elev=20, azim=45)
+    
+    # Добавляем информационную панель
+    info_text = "Куб с вершинными нормалями:\n• Зеленый: грани куба\n• Фиолетовый: вершинные нормали\n• Черные точки: вершины\n• Вершинные нормали усреднены из соседних граней"
+    ax.text2D(0.02, 0.98, info_text, transform=ax.transAxes, 
+              bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8),
+              verticalalignment='top')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return vertices, vertex_normals
+
 def visualize_cube_with_normals():
     """
-    Визуализирует куб с нормалями
+    Визуализирует куб с нормалями граней
     """
     # Создаем куб
     vertices, faces, triangle_faces = create_cube()
@@ -109,13 +216,13 @@ def visualize_cube_with_normals():
                  normal[0], normal[1], normal[2],
                  length=normal_length, color='red', 
                  arrow_length_ratio=0.2, linewidth=2,
-                 label='Нормаль' if face == faces[0] else "")
+                 label='Нормаль грани' if face == faces[0] else "")
     
     # Настраиваем график
     ax.set_xlabel('X')
     ax.set_ylabel('Y') 
     ax.set_zlabel('Z')
-    ax.set_title('3D-геометрия: Визуализация куба с нормалями', fontsize=14, fontweight='bold')
+    ax.set_title('3D-геометрия: Визуализация куба с нормалями ГРАНЕЙ', fontsize=14, fontweight='bold')
     
     # Устанавливаем равные масштабы по осям
     max_range = 3
@@ -133,10 +240,78 @@ def visualize_cube_with_normals():
     ax.view_init(elev=20, azim=45)
     
     # Добавляем информационную панель
-    info_text = "Куб с нормалями:\n• Синий: грани куба\n• Красный: векторы нормалей\n• Нормали перпендикулярны граням"
+    info_text = "Куб с нормалями граней:\n• Синий: грани куба\n• Красный: нормали граней\n• Нормали перпендикулярны граням"
     ax.text2D(0.02, 0.98, info_text, transform=ax.transAxes, 
               bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.8),
               verticalalignment='top')
+    
+    plt.tight_layout()
+    plt.show()
+
+def compare_face_vs_vertex_normals():
+    """
+    Сравнивает нормали граней и вершинные нормали на одном графике
+    """
+    vertices, faces, triangle_faces = create_cube()
+    vertex_normals = compute_vertex_normals(vertices, faces)
+    
+    fig = plt.figure(figsize=(14, 6))
+    
+    # График с нормалями граней
+    ax1 = fig.add_subplot(121, projection='3d')
+    cube_polygons = []
+    for face in faces:
+        polygon = [vertices[i] for i in face]
+        cube_polygons.append(polygon)
+    
+    cube_collection = Poly3DCollection(cube_polygons, 
+                                     alpha=0.2, 
+                                     facecolors='cyan', 
+                                     edgecolors='blue',
+                                     linewidths=1)
+    ax1.add_collection3d(cube_collection)
+    
+    # Нормали граней
+    for face in faces:
+        center = compute_face_center(vertices, face)
+        normal = compute_face_normal(vertices, face[:3])
+        ax1.quiver(center[0], center[1], center[2],
+                  normal[0], normal[1], normal[2],
+                  length=1.2, color='red', arrow_length_ratio=0.2, linewidth=2)
+    
+    ax1.set_title('Нормали граней (Face Normals)', fontweight='bold')
+    ax1.set_xlabel('X')
+    ax1.set_ylabel('Y')
+    ax1.set_zlabel('Z')
+    
+    # График с вершинными нормалями
+    ax2 = fig.add_subplot(122, projection='3d')
+    cube_collection2 = Poly3DCollection(cube_polygons, 
+                                      alpha=0.2, 
+                                      facecolors='lightgreen', 
+                                      edgecolors='green',
+                                      linewidths=1)
+    ax2.add_collection3d(cube_collection2)
+    
+    # Вершинные нормали
+    for i, (vertex, normal) in enumerate(zip(vertices, vertex_normals)):
+        ax2.quiver(vertex[0], vertex[1], vertex[2],
+                  normal[0], normal[1], normal[2],
+                  length=0.8, color='purple', arrow_length_ratio=0.15, linewidth=2)
+        ax2.scatter(vertex[0], vertex[1], vertex[2], color='black', s=30)
+    
+    ax2.set_title('Вершинные нормали (Vertex Normals)', fontweight='bold')
+    ax2.set_xlabel('X')
+    ax2.set_ylabel('Y')
+    ax2.set_zlabel('Z')
+    
+    # Общие настройки
+    for ax in [ax1, ax2]:
+        ax.set_xlim([-2.5, 2.5])
+        ax.set_ylim([-2.5, 2.5])
+        ax.set_zlim([-2.5, 2.5])
+        ax.grid(True, alpha=0.3)
+        ax.view_init(elev=20, azim=45)
     
     plt.tight_layout()
     plt.show()
@@ -265,11 +440,29 @@ if __name__ == "__main__":
     # Демонстрация расчета нормалей
     calculate_normals_demo()
     
-    # Визуализация куба с нормалями
+    # Визуализация куба с нормалями граней
     print("\n" + "=" * 70)
-    print("ВИЗУАЛИЗАЦИЯ КУБА С НОРМАЛЯМИ")
+    print("ВИЗУАЛИЗАЦИЯ КУБА С НОРМАЛЯМИ ГРАНЕЙ")
     print("=" * 70)
     visualize_cube_with_normals()
+    
+    # Визуализация куба с вершинными нормалями
+    print("\n" + "=" * 70)
+    print("ВИЗУАЛИЗАЦИЯ КУБА С ВЕРШИННЫМИ НОРМАЛЯМИ")
+    print("=" * 70)
+    vertices, vertex_normals = visualize_vertex_normals()
+    
+    # Выводим информацию о вершинных нормалях
+    print("\nВершинные нормали:")
+    for i, (vertex, normal) in enumerate(zip(vertices, vertex_normals)):
+        print(f"Вершина {i}: ({vertex[0]:.1f}, {vertex[1]:.1f}, {vertex[2]:.1f}) -> "
+              f"Нормаль: ({normal[0]:.2f}, {normal[1]:.2f}, {normal[2]:.2f})")
+    
+    # Сравнение двух типов нормалей
+    print("\n" + "=" * 70)
+    print("СРАВНЕНИЕ НОРМАЛЕЙ ГРАНЕЙ И ВЕРШИННЫХ НОРМАЛЕЙ")
+    print("=" * 70)
+    compare_face_vs_vertex_normals()
     
     # Демонстрация трансформаций
     print("\n" + "=" * 70)
